@@ -5,3 +5,5 @@ An AI Translator. This application will take voice input and convert it to text,
 User voice to Text.
 Translation.
 Text to Speech (Possibly using ElevenLabs)
+
+This is an example
