@@ -10,8 +10,14 @@
 <body>
     <h1>This is a Header</h1>
     <p>This is a paragraph</p>
-    <input type="text" name="sentence" id="sentence">
-    <button id="go">Go</button>
+    <form method="POST" action="/">
+        <input type="text" name="sentence" id="sentence">
+        <input type="submit" id="go" value="Go">
+    </form>
+    {% if translated_text %}
+      <h2>Translated Text:</h2>
+      <p>{{ translated_text }}</p>
+    {% endif %}
     <p id="output"></p>
 </body>
 </html>
