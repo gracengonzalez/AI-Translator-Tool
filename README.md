@@ -7,3 +7,4 @@ Translation.
 Text to Speech (Possibly using ElevenLabs)
 
 This is an example
+API key: sk_0cce9c6b4292f00d9ce4e4f813da66484b769b69af27cb1b
