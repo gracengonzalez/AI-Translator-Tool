@@ -1,0 +1,93 @@
+/* Reset some default spacing */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
+  margin: 40px;
+  padding: 0;
+  line-height: 1.6;
+}
+
+/* Center main content */
+h1 {
+  text-align: center;
+  color: #222;
+  margin-bottom: 10px;
+}
+
+p {
+  margin-bottom: 10px;
+}
+
+/* Form styling */
+form {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+input[type="text"],
+select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+input[type="submit"],
+button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+input[type="submit"]:hover,
+button:hover {
+  background-color: #45a049;
+}
+
+/* Speak button + audio area */
+#speakBtn {
+  display: block;
+  margin: 0 auto 10px;
+}
+
+#speakStatus {
+  display: block;
+  text-align: center;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+audio {
+  display: block;
+  margin: 10px auto;
+}
+
+/* Translated text */
+#translatedText {
+  font-weight: bold;
+  text-align: center;
+  margin-top: 20px;
+  color: #333;
+}
+
+/* Output / misc area */
+#output {
+  text-align: center;
+  margin-top: 15px;
+  color: #555;
+}
