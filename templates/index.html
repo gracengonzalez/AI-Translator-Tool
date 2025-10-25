@@ -1,29 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="script.js" defer></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Document</title>
+
+  <!-- Use url_for so Flask serves from /static -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
-    <h1>This is a Header</h1>
-    <p>This is a paragraph</p>
-    <button type="button" id="speakBtn">Speak</button>
-    <span id="speakStatus"></span>
-    <form method="POST" action="/">
-        <input type="text" name="sentence" id="sentence">
-        <select name="languages" id="languages">
-            <option value="en_to_es">English to Spanish</option>
-            <option value="es_to_en">Spanish to English</option>
-        </select>
-        <input type="submit" id="go" value="Go">
-    </form>
-    {% if translated_text %}
-      <h2>Translated Text:</h2>
-      <p>{{ translated_text }}</p>
-    {% endif %}
-    <p id="output"></p>
+  <h1>This is a Header</h1>
+  <p>This is a paragraph</p>
+
+  <!-- Speak UI -->
+  <button type="button" id="speakBtn">Speak</button>
+  <span id="speakStatus"></span>
+  <audio id="player" controls></audio>
+
+  <form method="POST" action="/">
+    <input type="text" name="sentence" id="sentence" placeholder="Type text here"/>
+    <select name="languages" id="languages">
+      <option value="en_to_es">English to Spanish</option>
+      <option value="es_to_en">Spanish to English</option>
+    </select>
+    <input type="submit" id="go" value="Go">
+  </form>
+
+  {% if translated_text %}
+    <h2>Translated Text:</h2>
+    <!-- Add the id so JS can read this -->
+    <p id="translatedText">{{ translated_text }}</p>
+  {% endif %}
+
+  <p id="output"></p>
 </body>
 </html>
