@@ -67,7 +67,6 @@ def stt():
         "Accept": "application/json"
     }
 
-    # ✅ Correct STT model for ElevenLabs
     data = {
         "model_id": "scribe_v1"
     }
