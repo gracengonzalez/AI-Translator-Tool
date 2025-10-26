@@ -94,6 +94,33 @@ def stt():
     return {"text": recognized_text}
 
 
+@app.route("/translate", methods=["POST"])
+def translate_api():
+    """
+    Simple JSON/form translate helper for the frontend.
+    Accepts JSON { sentence, languages } or form-encoded data and
+    returns JSON { translated_text }.
+    """
+    data = request.get_json(silent=True) or request.form or {}
+    user_text = (data.get("sentence") or data.get("text") or "").strip()
+    selected_lang = (data.get("languages") or data.get("language") or "").strip()
+
+    if not user_text:
+        return {"error": "Missing sentence parameter"}, 400
+
+    translated_text = None
+    if selected_lang == "en_to_es":
+        translated_text = englishToSpanish(user_text)
+    elif selected_lang == "es_to_en":
+        translated_text = spanishToEnglish(user_text)
+    else:
+        # If no/unknown language provided, try to auto-detect based on simple heuristic:
+        # default to English->Spanish
+        translated_text = englishToSpanish(user_text)
+
+    return {"translated_text": translated_text}
+
+
 @app.route("/tts")
 def tts():
     """

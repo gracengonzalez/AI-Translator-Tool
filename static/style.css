@@ -9,7 +9,7 @@ body {
 }
 
 /* Center main content */
-h1 {
+h1, h2 {
   text-align: center;
   color: #222;
   margin-bottom: 10px;
@@ -60,7 +60,7 @@ button:hover {
 }
 
 /* Speak button + audio area */
-#speakBtn {
+#speakBtn, #micBtn {
   display: block;
   margin: 0 auto 10px;
 }

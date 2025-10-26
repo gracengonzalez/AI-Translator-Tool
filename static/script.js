@@ -110,6 +110,12 @@ document.addEventListener("DOMContentLoaded", () => {
           if (data.text) {
             sentenceInput.value = data.text;
             micStatus.textContent = "✅ Recognized!";
+            // Automatically translate the recognized text and play it back
+            try {
+              await translateAndSpeak(data.text);
+            } catch (err) {
+              console.error("Auto translate/play failed:", err);
+            }
           } else {
             micStatus.textContent = "❌ Could not recognize speech.";
           }
@@ -137,6 +143,84 @@ document.addEventListener("DOMContentLoaded", () => {
       startRecording();
     } else if (mediaRecorder && mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
+    }
+  }
+
+  // Translate server-side (JSON) and then request TTS to play the translated text.
+  async function translateAndSpeak(text) {
+    if (!text) return;
+    const langSelect = document.getElementById("languages");
+    const selectedLang = langSelect ? langSelect.value : "en_to_es";
+
+    micStatus.textContent = "Translating...";
+
+    let translated = "";
+    try {
+      const res = await fetch("/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentence: text, languages: selectedLang })
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error(`Non-JSON response (status ${res.status})`);
+      }
+
+      if (!res.ok) {
+        const msg = (typeof data?.error === "string" && data.error) || `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+
+      translated = data.translated_text || "";
+      if (!translated) throw new Error("Empty translation returned");
+
+      // Ensure translated text is visible in the page (matching server-rendered template)
+      let translatedEl = document.getElementById("translatedText");
+      if (!translatedEl) {
+        // Create heading and paragraph where appropriate
+        const h2 = document.createElement("h2");
+        h2.textContent = "Translated Text:";
+        const p = document.createElement("p");
+        p.id = "translatedText";
+        p.textContent = translated;
+        const output = document.getElementById("output");
+        if (output && output.parentNode) {
+          output.parentNode.insertBefore(h2, output);
+          output.parentNode.insertBefore(p, output);
+        } else {
+          document.body.appendChild(h2);
+          document.body.appendChild(p);
+        }
+      } else {
+        translatedEl.textContent = translated;
+      }
+
+      micStatus.textContent = "Translated ✅";
+    } catch (err) {
+      console.error("Translation error:", err);
+      micStatus.textContent = `⚠️ ${err.message || "Translation failed"}`;
+      return;
+    }
+
+    // Request TTS for the translated text and play it
+    try {
+      statusEl.textContent = "Generating speech...";
+      speakBtn.disabled = true;
+      const ttsRes = await fetch(`/tts?text=${encodeURIComponent(translated)}`);
+      if (!ttsRes.ok) throw new Error(`TTS HTTP ${ttsRes.status}`);
+      const audioBlob = await ttsRes.blob();
+      const url = URL.createObjectURL(audioBlob);
+      player.src = url;
+      await player.play();
+      statusEl.textContent = "Playing ✅";
+    } catch (err) {
+      console.error("TTS error:", err);
+      statusEl.textContent = "Error generating audio.";
+    } finally {
+      speakBtn.disabled = false;
     }
   }
 
