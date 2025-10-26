@@ -1,7 +1,9 @@
+# app.py
 import os
 import requests
 from dotenv import load_dotenv
 from flask import Flask, request, render_template, Response, stream_with_context
+from deep_translator import GoogleTranslator
 
 load_dotenv()
 
@@ -17,12 +19,11 @@ if not VOICE_ID:
     raise RuntimeError("Missing ELEVENLABS_VOICE_ID in .env")
 
 # --- Translation helpers ---
-from deep_translator import GoogleTranslator
-def englishToSpanish(text):
-    return GoogleTranslator(source="en", target="es").translate(text)
+def englishToSpanish(text: str) -> str:
+    return GoogleTranslator(source="en", target="es").translate(text or "")
 
-def spanishToEnglish(text):
-    return GoogleTranslator(source="es", target="en").translate(text)
+def spanishToEnglish(text: str) -> str:
+    return GoogleTranslator(source="es", target="en").translate(text or "")
 
 # --- Routes ---
 @app.route("/", methods=["GET", "POST"])
@@ -37,8 +38,67 @@ def index():
             translated_text = spanishToEnglish(user_text)
     return render_template("index.html", translated_text=translated_text)
 
+
+@app.route("/stt", methods=["POST"])
+def stt():
+    """
+    Receives a recorded audio blob, sends it to ElevenLabs STT,
+    and returns recognized text as JSON.
+    """
+    if "audio" not in request.files:
+        return {"error": "Missing audio file"}, 400
+
+    audio_file = request.files["audio"]
+
+    if not audio_file.filename:
+        return {"error": "Empty filename"}, 400
+
+    audio_bytes = audio_file.read()
+    if not audio_bytes:
+        return {"error": "Empty audio payload"}, 400
+
+    mimetype = getattr(audio_file, "mimetype", None) or "application/octet-stream"
+
+    files = {
+        "file": (audio_file.filename, audio_bytes, mimetype)
+    }
+    headers = {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Accept": "application/json"
+    }
+
+    # ✅ Correct STT model for ElevenLabs
+    data = {
+        "model_id": "scribe_v1"
+    }
+
+    url = "https://api.elevenlabs.io/v1/speech-to-text"
+
+    try:
+        response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+    except requests.RequestException as e:
+        return {"error": f"Upstream request failed: {e}"}, 502
+
+    if not response.ok:
+        try:
+            return {"error": response.json()}, response.status_code
+        except ValueError:
+            return {"error": response.text}, response.status_code
+
+    try:
+        result = response.json()
+    except ValueError:
+        return {"error": "Upstream returned non-JSON"}, 502
+
+    recognized_text = result.get("text", "")
+    return {"text": recognized_text}
+
+
 @app.route("/tts")
 def tts():
+    """
+    Streams ElevenLabs TTS audio (MPEG) for the given ?text= query param.
+    """
     text = request.args.get("text", "").strip()
     if not text:
         return ("Missing ?text parameter", 400)
@@ -49,6 +109,7 @@ def tts():
         "Accept": "audio/mpeg",
         "Content-Type": "application/json",
     }
+    # ✅ Keep TTS model as multilingual
     payload = {
         "text": text,
         "model_id": "eleven_multilingual_v2"
@@ -66,6 +127,7 @@ def tts():
                 yield chunk
 
     return Response(stream_with_context(generate()), mimetype="audio/mpeg")
+
 
 # --- Start app *after* routes are defined ---
 if __name__ == "__main__":
