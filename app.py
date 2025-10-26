@@ -2,6 +2,7 @@ import os
 import requests
 from dotenv import load_dotenv
 from flask import Flask, request, render_template, Response, stream_with_context
+from deep_translator import GoogleTranslator
 
 load_dotenv()
 
@@ -17,7 +18,6 @@ if not VOICE_ID:
     raise RuntimeError("Missing ELEVENLABS_VOICE_ID in .env")
 
 # --- Translation helpers ---
-from deep_translator import GoogleTranslator
 def englishToSpanish(text):
     return GoogleTranslator(source="en", target="es").translate(text)
 

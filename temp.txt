@@ -1,0 +1,254 @@
+import os
+import requests
+from dotenv import load_dotenv
+from flask import Flask, request, render_template, Response, stream_with_context
+from deep_translator import GoogleTranslator
+
+load_dotenv()
+
+app = Flask(__name__)
+
+# --- ENV ---
+ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")  # e.g., "21m00Tcm4TlvDq8ikWAM"
+
+if not ELEVEN_API_KEY:
+    raise RuntimeError("Missing ELEVENLABS_API_KEY in .env")
+if not VOICE_ID:
+    raise RuntimeError("Missing ELEVENLABS_VOICE_ID in .env")
+
+# --- Translation helpers ---
+def englishToSpanish(text):
+    return GoogleTranslator(source="en", target="es").translate(text)
+
+def spanishToEnglish(text):
+    return GoogleTranslator(source="es", target="en").translate(text)
+
+# --- Routes ---
+@app.route("/", methods=["GET", "POST"])
+def index():
+    translated_text = None
+    if request.method == "POST":
+        user_text = request.form.get("sentence", "")
+        selected_lang = request.form.get("languages", "")
+        if selected_lang == "en_to_es":
+            translated_text = englishToSpanish(user_text)
+        elif selected_lang == "es_to_en":
+            translated_text = spanishToEnglish(user_text)
+    return render_template("index.html", translated_text=translated_text)
+
+#@app.route("/stt", methods=["POST"])
+#def stt():
+#    if "audio" not in request.files:
+#        return {"error": "Missing audio file"}, 400
+#
+#    audio_file = request.files["audio"]
+#    files = {"file": (audio_file.filename, audio_file.read(), "audio/webm")}
+#    headers = {"xi-api-key": ELEVEN_API_KEY}
+#
+#    url = "https://api.elevenlabs.io/v1/speech-to-text"
+#    try:
+#        response = requests.post(url, headers=headers, files=files, timeout=60)
+#        response.raise_for_status()
+#    except requests.RequestException as e:
+#        return {"error": f"Speech recognition failed: {e}"}, 502
+#
+#    result = response.json()
+#    recognized_text = result.get("text", "")
+#    return {"text": recognized_text}
+
+@app.route("/stt", methods=["POST"])
+def stt():
+    if "audio" not in request.files:
+        return {"error": "Missing audio file"}, 400
+
+    audio_file = request.files["audio"]
+    files = {"file": (audio_file.filename, audio_file.read(), "audio/webm")}
+    headers = {"xi-api-key": ELEVEN_API_KEY}
+    url = "https://api.elevenlabs.io/v1/speech-to-text"
+
+    try:
+        response = requests.post(url, headers=headers, files=files, timeout=60)
+        response.raise_for_status()
+        print("ElevenLabs STT response:", response.text)  # <-- add this
+    except requests.RequestException as e:
+        print("STT request failed:", e)
+        return {"error": f"Speech recognition failed: {e}"}, 502
+
+    result = response.json()
+    recognized_text = result.get("text", "")
+    print("Recognized text:", recognized_text)
+    return {"text": recognized_text}
+
+@app.route("/tts")
+def tts():
+    text = request.args.get("text", "").strip()
+    if not text:
+        return ("Missing ?text parameter", 400)
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}/stream"
+    headers = {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2"
+    }
+
+    try:
+        r = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        return (f"TTS error: {e}", 502)
+
+    def generate():
+        for chunk in r.iter_content(chunk_size=16384):
+            if chunk:
+                yield chunk
+
+    return Response(stream_with_context(generate()), mimetype="audio/mpeg")
+
+# --- Start app *after* routes are defined ---
+if __name__ == "__main__":
+    app.run(debug=True)
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Document</title>
+
+  <!-- Use url_for so Flask serves from /static -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+<body>
+  <h1>Live Translation</h1>
+
+  <!-- Speak UI -->
+  <button type="button" id="speakBtn">Play</button>
+  <span id="speakStatus"></span>
+  <audio id="player" controls></audio>
+  <button type="button" id="micBtn">🎙 Start Talking</button>
+  <span id="micStatus"></span>
+
+  <form method="POST" action="/">
+    <input type="text" name="sentence" id="sentence" placeholder="Type text here"/>
+    <select name="languages" id="languages">
+      <option value="en_to_es">English to Spanish</option>
+      <option value="es_to_en">Spanish to English</option>
+    </select>
+    <input type="submit" id="go" value="Go">
+  </form>
+
+  {% if translated_text %}
+    <h2>Translated Text:</h2>
+    <!-- Add the id so JS can read this -->
+    <p id="translatedText">{{ translated_text }}</p>
+  {% endif %}
+
+  <p id="output"></p>
+</body>
+</html>
+
+document.addEventListener("DOMContentLoaded", () => {
+  const speakBtn = document.getElementById("speakBtn");
+  const statusEl = document.getElementById("speakStatus");
+  const player = document.getElementById("player");
+  const micBtn = document.getElementById("micBtn");
+  const micStatus = document.getElementById("micStatus");
+  const sentenceInput = document.getElementById("sentence");
+
+  if (speakBtn) {
+    speakBtn.addEventListener("click", async () => {
+      const textEl = document.getElementById("translatedText") || sentenceInput;
+      const text = (textEl?.textContent || textEl?.value || "").trim();
+      if (!text) {
+        statusEl.textContent = "No text to speak.";
+        return;
+      }
+
+      statusEl.textContent = "Generating speech...";
+      speakBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/tts?text=${encodeURIComponent(text)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        player.src = url;
+        await player.play();
+        statusEl.textContent = "Playing ✅";
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = "Error generating audio.";
+      } finally {
+        speakBtn.disabled = false;
+      }
+    });
+  }
+
+  let mediaRecorder;
+  let audioChunks = [];
+  let isRecording = false;
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.start();
+      audioChunks = [];
+      isRecording = true;
+
+      micStatus.textContent = "🎙 Listening...";
+      micBtn.textContent = "⏹ Stop";
+
+      mediaRecorder.addEventListener("dataavailable", event => {
+        audioChunks.push(event.data);
+      });
+
+        mediaRecorder.addEventListener("stop", async () => {
+        micStatus.textContent = "Processing...";
+        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/wav" });
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "speech.webm");
+
+        try {
+          const res = await fetch("/stt", { method: "POST", body: formData });
+          const data = await res.json();
+
+          if (data.text) {
+            sentenceInput.value = data.text;
+            micStatus.textContent = "✅ Recognized!";
+          } else {
+            micStatus.textContent = "❌ Could not recognize speech.";
+          }
+        } catch (err) {
+          console.error(err);
+          micStatus.textContent = "⚠️ Error sending audio.";
+        }
+
+        micBtn.textContent = "🎙 Start Talking";
+        isRecording = false;
+      });
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+      micStatus.textContent = "🎤 Mic access denied.";
+    }
+  }
+
+  function toggleRecording() {
+    if (!isRecording) {
+      startRecording();
+    } else if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener("click", toggleRecording);
+  }
+});
